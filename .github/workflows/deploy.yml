@@ -3,8 +3,8 @@ name: Production CI/CD Pipeline
 on:
   push:
     branches:
-      - master
       - main
+      - master
 
 env:
   IMAGE_NAME: winudupa/devops-site
@@ -12,61 +12,23 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
 
-      - name: Build Docker Image
-        run: docker build -t $IMAGE_NAME:${{ github.sha }} .
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      - name: Push Image
+      - name: Build Docker Image
+        run: |
+          docker build \
+            --build-arg VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }} \
+            --build-arg VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
+            -t $IMAGE_NAME:${{ github.sha }} .
+
+      - name: Push Docker Image
         run: |
           docker tag $IMAGE_NAME:${{ github.sha }} $IMAGE_NAME:latest
           docker push $IMAGE_NAME:${{ github.sha }}
           docker push $IMAGE_NAME:latest
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ubuntu
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            echo "Pulling new image..."
-            docker pull winudupa/devops-site:${{ github.sha }}
-
-            echo "Saving current container for rollback..."
-            docker commit devops-frontend previous || true
-
-            echo "Stopping old container..."
-            docker stop devops-frontend || true
-            docker rm devops-frontend || true
-
-            echo "Starting new container..."
-            docker run -d -p 4000:80 --name devops-frontend winudupa/devops-site:${{ github.sha }}
-
-            echo "Waiting for app to start..."
-            sleep 10
-
-            echo "Running health check..."
-            if ! curl -f http://localhost:4000; then
-              echo "Deployment failed! Rolling back..."
-
-              docker stop devops-frontend
-              docker rm devops-frontend
-
-              echo "Starting previous version..."
-              docker run -d -p 4000:80 --name devops-frontend previous
-
-              exit 1
-            fi
-
-            echo "Deployment successful!"
