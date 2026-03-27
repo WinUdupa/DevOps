@@ -37,7 +37,7 @@ export function AboutConferencePage({ onNavigate }: AboutConferencePageProps) {
   const keyHighlights = [
     {
       icon: "⚡",
-      title: "Strategic Agility",
+      title: "Strategic Agilety",
       description: "Organizations adapting swiftly to market changes and disruptions"
     },
     {
